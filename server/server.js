@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import {StockManagerBot} from './bot.js';
+import { BotFrameworkAdapter } from 'botbuilder';
 
 import {
   initializeIdentityService
@@ -16,12 +18,51 @@ import {
 dotenv.config();
 const app = express();
 
+const adapter = new BotFrameworkAdapter({
+  appId: process.env.BOT_REG_AAD_APP_ID,
+  appPassword:process.env.BOT_REG_AAD_APP_PASSWORD
+});
+
+const stockManagerBot = new StockManagerBot();
+
 // JSON middleware is needed if you want to parse request bodies
 app.use(express.json());
 app.use(cookieParser());
 
 // Allow the identity service to set up its middleware
 await initializeIdentityService(app);
+
+// Catch-all for errors.
+const onTurnErrorHandler = async (context, error) => {
+  // This check writes out errors to console log .vs. app insights.
+  // NOTE: In production environment, you should consider logging this to Azure
+  //       application insights.
+  console.error(`\n [onTurnError] unhandled error: ${ error }`);
+
+  // Send a trace activity, which will be displayed in Bot Framework Emulator
+  await context.sendTraceActivity(
+      'OnTurnError Trace',
+      `${ error }`,
+      'https://www.botframework.com/schemas/error',
+      'TurnError'
+  );
+
+  // Send a message to the user
+  await context.sendActivity('The bot encountered an error or bug.');
+  await context.sendActivity('To continue to run this bot, please fix the bot source code.');
+};
+// Set the onTurnError for the singleton BotFrameworkAdapter.
+adapter.onTurnError = onTurnErrorHandler;
+
+
+app.post('/api/messages', (req, res) => {
+  adapter.processActivity(req, res, async (context) => {
+    await stockManagerBot.run(context);
+  }).catch(error=>{
+    console.log(error)
+  });
+});
+
 
 // Web service returns an employee's profile
 app.get('/api/employee', async (req, res) => {
@@ -101,9 +142,14 @@ app.get('/modules/env.js', (req, res) => {
   res.contentType("application/javascript");
   res.send(`
     export const env = {
+      HOSTNAME: "${process.env.HOSTNAME}",
+      TENANT_ID: "${process.env.TENANT_ID}",
+      CLIENT_ID: "${process.env.CLIENT_ID}",
+      TEAMS_APP_ID: "${process.env.TEAMS_APP_ID}"
     };
   `);
 });
+
 
 // Serve static pages from /client
 app.use(express.static('client'));

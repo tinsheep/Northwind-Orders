@@ -4,6 +4,36 @@ const EMAIL_DOMAIN = "northwindtraders.com"; // For making fake email addresses 
 const db = new dbService();     // Singleton service for Northwind DB
 
 const employeeCache = {};
+
+export async function getProductByName(productNameStartsWith) {
+    let result = {};
+
+    const products = await db.getTable("Products", "ProductID");
+    const match = productNameStartsWith.toLowerCase();
+    const matchingProducts =
+        products.data.filter((item) => item.ProductName.toLowerCase().startsWith(match));
+
+    result = matchingProducts.map(product => ({
+        productId: product.ProductID,
+        productName: product.ProductName,
+        unitsInStock: product.UnitsInStock,
+        categoryId: product.CategoryID
+    }));
+
+    return result;
+}
+
+export async function updateProductUnitStock(productId, unitsInStock) {
+
+    const products = await db.getTable("Products", "ProductID");
+    const product = products.item(productId);
+    product.UnitsInStock = unitsInStock;
+    productCache[productId] = null;         // Clear the product cache
+    categoryCache[product.CategoryID]=null;// Clear the category cache for this product  
+    await products.save();                  // Write the products "table"
+
+}
+
 export async function getEmployee(employeeId) {
 
     if (employeeCache[employeeId]) return employeeCache[employeeId];

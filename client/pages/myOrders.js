@@ -1,12 +1,25 @@
 import {
     getLoggedInEmployee
 } from '../identity/identityClient.js';
-
+import 'https://statics.teams.cdn.office.net/sdk/v1.11.0/js/MicrosoftTeams.min.js';
+import { inTeams } from '../modules/teamsHelpers.js';
 async function displayUI() {
 
     const displayElement = document.getElementById('content');
     const ordersElement = document.getElementById('orders');
     const messageDiv = document.getElementById('message');
+    
+    // Handle incoming deep links by redirecting to the selected order
+    if (await inTeams()) {
+
+        microsoftTeams.initialize(async () => {
+            microsoftTeams.getContext(async (context) => {
+                if (context.subEntityId) {
+                    window.location.href = `/pages/orderDetail.html?orderId=${context.subEntityId}`;
+                }
+            });
+        });
+    }
 
     try {
         const employee = await getLoggedInEmployee();
